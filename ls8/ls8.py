@@ -7,5 +7,8 @@ from cpu import *
 
 cpu = CPU()
 
-cpu.load()
+# try:
+cpu.load(sys.argv[1])
 cpu.run()
+# except IndexError:
+#     print('No program path provided')

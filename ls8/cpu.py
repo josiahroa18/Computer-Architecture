@@ -7,36 +7,108 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        self.ram = [0] * 256
+        self.reg = [0] * 8
+        self.pc = 0
+        self.running = True
 
-    def load(self):
+        # Set the stack pointer to R7
+        self.reg[7] = 0xF4
+
+        self.branch_table = {
+            0b10000010: self.LDI,
+            0b01000111: self.PRN,
+            0b00000001: self.HLT,
+            0b10100010: self.MUL,
+            0b10100000: self.ADD,
+            0b01000101: self.PUSH,
+            0b01000110: self.POP,
+            0b01010000: self.CALL,
+            0b00010001: self.RET
+        }
+
+    # Should accept the address to read and return the value
+    def ram_read(self, address):
+        return self.ram[address]
+
+    # Should accept an address and value and store the value at that address
+    def ram_write(self, address, value):
+        self.ram[address] = value
+
+    def LDI(self):
+        index = self.ram[self.pc + 1]
+        value = self.ram[self.pc + 2]
+        self.reg[index] = value
+        self.pc += 3
+
+    def PRN(self):
+        value = self.reg[self.ram[self.pc + 1]]
+        print(value)
+        self.pc += 2
+
+    def HLT(self):
+        self.running = False
+
+    def MUL(self):
+        reg_a = self.ram[self.pc + 1]
+        reg_b = self.ram[self.pc + 2]
+        self.alu('MUL', reg_a, reg_b)
+
+    def ADD(self):
+        reg_a = self.ram[self.pc + 1]
+        reg_b = self.ram[self.pc + 2]
+        self.alu('ADD', reg_a, reg_b)
+
+    def PUSH(self):
+        self.reg[7] -= 1
+        register_index = self.ram[self.pc + 1]
+        self.ram[self.reg[7]] = self.reg[register_index]
+        self.pc += 2
+
+    def POP(self):
+        register_index = self.ram[self.pc + 1]
+        self.reg[register_index] = self.ram[self.reg[7]]
+        self.reg[7] += 1
+        self.pc += 2
+
+    def CALL(self):
+        # Store next instruction in the stack
+        self.reg[7] -= 1
+        self.ram[self.reg[7]] = self.pc + 2
+        # Move program counter to address stored in register
+        register_index = self.ram[self.pc + 1]
+        self.pc = self.reg[register_index]
+
+    def RET(self):
+        # Pop from the stack
+        address = self.ram[self.reg[7]]
+        register_index = self.ram[self.pc + 1]
+        self.reg[register_index] = self.ram[self.reg[7]]
+        self.reg[7] += 1
+        # Update program counter
+        self.pc = address
+
+    def load(self, fileName):
         """Load a program into memory."""
-
         address = 0
-
-        # For now, we've just hardcoded a program:
-
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
-
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
-
-
+        with open(fileName) as file:
+            for line in file:
+                line = line.split('#')
+                try:
+                    instruction = int(line[0], 2)
+                    self.ram[address] = instruction
+                    address += 1
+                except ValueError:
+                    continue
+                    
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
-
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+            self.pc += 3
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
+            self.pc += 3
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -62,4 +134,14 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        while self.running:
+            ir = self.ram[self.pc]
+            try:
+                self.branch_table[ir]()
+            except:
+                raise Exception(f"Unknown instruction: {self.ram[self.pc]}")
+
+            
+
+
+        
